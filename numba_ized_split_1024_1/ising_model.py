@@ -1,5 +1,54 @@
 import numpy as np
 from base_model import Model
+from numba import njit
+
+@njit
+def _energy_update(step, n_x, n_y, energy_change_array, glass):
+    x = step[0]
+    y = step[1]
+
+    # recompute energies around x and y
+    a = np.array([-1, 0, 1])
+    for i in (x + a)%n_x:
+        for j in (y + a)%n_y:
+            energy_change_array[i, j] = energy_change(i, j, glass, n_x, n_y)
+    return
+
+@njit
+def energy_change(i,j,glass, n_x, n_y):
+    s = glass[(i+1)%n_x,j] + glass[(i-1)%n_x, j] + glass[i,(j+1)%n_y] + glass[i,(j-1)%n_y]
+    return int(2*s*glass[i,j])
+
+@njit
+def _probability_update(step, n_x,n_y,T,probabilities, energy_change_array, p_row, p_t):
+    # recompute probabilities around x and y
+    x = step[0]
+    y = step[1]
+    a = np.array([-1, 0, 1])
+    '''for i in (x + a)%n_x:
+        for j in (y + a)%n_y:
+            probabilities[i,j] = np.min(np.array([1.,np.exp(-float(energy_change_array[i, j])/T)]))
+    p_row[(x + a)%n_x] = np.sum(probabilities[(x + a)%n_x, :], axis = 1)
+    p_t = np.sum(p_row)'''
+    p_t -= np.sum(p_row[(x + a)%n_x])
+    for i in (x + a)%n_x:
+        for j in (y + a)%n_y:
+            p_row[i] -= probabilities[i,j]
+            probabilities[i,j] = np.min(np.array([1.,np.exp(-float(energy_change_array[i, j])/T)]))
+            p_row[i] += probabilities[i,j]
+    p_t += np.sum(p_row[(x + a)%n_x])
+    return p_t
+
+@njit
+def _choice(p, r):
+    i = int(0)
+    c = 0.
+    for k in p:
+        c += k
+        if c > r:
+            return i
+        i += 1
+    return i-1
 
 class Ising2D(Model):
     def __init__(self, x, y, T):
@@ -13,15 +62,12 @@ class Ising2D(Model):
         self.total_probability()
         self._p_t = np.sum(self._probabilities)
         self._p_row = np.sum(self._probabilities, axis = 1)
-        self._p_sub = self._probabilities/np.reshape(self._p_row,[self.n_x,1])
-
-    def get_probabilities(self):
-        x = np.ravel(self._probabilities)
-        return x
 
     def move_selection(self):
-        i = self.rng.choice(self.n_x, p = self._p_row/self._p_t)
-        j = self.rng.choice(self.n_y, p = self._p_sub[i])
+        r = self.rng.uniform()
+        i = _choice(self._p_row, self._p_t * r)
+        r = self.rng.uniform()
+        j = _choice(self._probabilities[i], self._p_row[i] * r)
         return np.array([i,j], dtype = 'int')
 
     def convert_index(self, index):
@@ -46,18 +92,12 @@ class Ising2D(Model):
         y = step[1]
 
         self._energy += self.energy_change_array[x,y]
-
-        # recompute energies around x and y
-        a = np.array([-1, 0, 1], dtype = "int")
-        for i in (x + a)%self.n_x:
-            for j in (y + a)%self.n_y:
-                self.energy_change_array[i, j] = self._energy_change(i, j)
+        _energy_update(step, self.n_x, self.n_y, self.energy_change_array, self._glass)
         return
 
     def _energy_change(self, i, j):
         latt = self._glass
         s = latt[(i+1)%self.n_x,j] + latt[(i-1)%self.n_x, j] + latt[i,(j+1)%self.n_y] + latt[i,(j-1)%self.n_y]
-
         return int(2*s*latt[i,j])
 
     def total_probability(self):
@@ -67,16 +107,7 @@ class Ising2D(Model):
 
     def probability_update(self, step):
         # recompute probabilities around x and y
-        x = step[0]
-        y = step[1]
-        a = np.array([-1, 0, 1], dtype = "int")
-        for i in (x + a)%self.n_x:
-            for j in (y + a)%self.n_y:
-                self._probabilities[i,j] = np.min([1,np.exp(-self.energy_change_array[i, j]/self.T)])
-        self._p_row[(x + a)%self.n_x] = np.sum(self._probabilities[(x + a)%self.n_x, :], axis = 1)
-        self._p_t = np.sum(self._p_row)
-        self._p_sub[(x + a)%self.n_x] = self._probabilities[(x + a)%self.n_x]/np.reshape(self._p_row[(x + a)%self.n_x],[3,1])
-        return
+        self._p_t = _probability_update(step, self.n_x, self.n_y, self.T, self._probabilities, self.energy_change_array, self._p_row, self._p_t)
 
     def glass_update(self, step):
         x = step[0]
@@ -85,7 +116,7 @@ class Ising2D(Model):
         return
 
     def rate(self):
-        return np.sum(self._p_t)
+        return self._p_t
 
     def get_glass(self):
         return self._glass

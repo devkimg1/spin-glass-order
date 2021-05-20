@@ -3,6 +3,8 @@
 '''
 
 import numpy as np
+import pickle
+import os
 
 class RFMC():
     model: None
@@ -13,9 +15,12 @@ class RFMC():
     def __init__(self, model):
         self.model = model
         self.rng = np.random.default_rng()
-        self.energy_series = np.empty(1,dtype='int')
-        self.time_series = np.empty(1,dtype='float')
+        #self.energy_series = np.empty(1,dtype='int')
+        #self.time_series = np.empty(1,dtype='float')
         self.steps = 0
+        self.next_run_number = 0
+        if not os.path.exists(('runs/%dx%d_%1.2f'%(self.model.n_x,self.model.n_y,self.model.T)).replace('.','-')):
+            os.makedirs(('runs/%dx%d_%1.2f'%(self.model.n_x,self.model.n_y,self.model.T)).replace('.','-'))
         pass
 
     def run(self, steps):
@@ -27,10 +32,6 @@ class RFMC():
             self.steps += 1
             step = self.move_selection()
 
-            #print(self.model._glass)
-            #print(self.model.energy_change_array)
-            #print(self.model._probabilities)
-
             self.model.glass_update(step)
             self.model.energy_update(step)
             self.model.probability_update(step)
@@ -38,8 +39,9 @@ class RFMC():
             time_series[i] = self.time_calculation(self.model.rate())
             energy_series[i] = self.model._energy
 
-        self.energy_series = np.concatenate([self.energy_series, energy_series])
-        self.time_series = np.concatenate([self.time_series, time_series])
+        pickle.dump(energy_series,open(('runs/%dx%d_%1.2f/energy_%d'%(self.model.n_x,self.model.n_y,self.model.T,self.next_run_number)).replace('.','-')+'.p','wb'))
+        pickle.dump(time_series,open(('runs/%dx%d_%1.2f/time_%d'%(self.model.n_x,self.model.n_y,self.model.T,self.next_run_number)).replace('.','-')+'.p','wb'))
+        self.next_run_number += 1
         return
 
     def move_selection(self):

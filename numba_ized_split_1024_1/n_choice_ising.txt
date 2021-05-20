@@ -1,0 +1,14 @@
+#!/bin/bash -l
+#SBATCH -p amdsmall
+#SBATCH --time=24:00:00
+#SBATCH --ntasks=8
+#SBATCH --mem=16g
+#SBATCH --tmp=16g
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=kimx5262@umn.edu
+#SBATCH --array=150-245:5
+cd ~/numba_ized_split_1024_1
+export OMP_NUM_THREADS=4
+module load python
+CASE_NUM=`printf %03d $SLURM_ARRAY_TASK_ID`
+python rfmc_ising_next.py $CASE_NUM

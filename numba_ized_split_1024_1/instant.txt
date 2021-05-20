@@ -1,0 +1,13 @@
+#!/bin/bash -l
+#SBATCH -p amdsmall
+#SBATCH --time=1:00:00
+#SBATCH --ntasks=2
+#SBATCH --mem=16g
+#SBATCH --tmp=16g
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=kimx5262@umn.edu
+
+cd ~/numba_ized_split_1024_1
+export OMP_NUM_THREADS=4
+module load python
+python rfmc_ising_instantiate.py

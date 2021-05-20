@@ -24,25 +24,6 @@ class Model(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_probabilities(self):
-        '''
-        :rtype: 1D array (for use in np.random.choice()) which sums to 1
-        '''
-        pass
-
-    @abc.abstractmethod
-    def convert_index(self, index):
-        '''
-        The index is an int and comes from np.random.choice() based on how
-        get_probabilities() was raveled into the the 1D array. step is defined
-        by the user and needs to be able to convey the step taken (for a 2D spin
-        model, this is can be done by sending coordinates)
-
-        :rtype: step
-        '''
-        pass
-
-    @abc.abstractmethod
     def total_energy(self):
         '''
         Calculate the energy of the system in the current state of glass.
@@ -112,5 +93,12 @@ class Model(abc.ABC):
         less than the number of possible moves and should be a float of sorts.
 
         :rtype: double
+        '''
+        pass
+
+    @abc.abstractmethod
+    def move_selection(self):
+        '''
+        Return the selected move
         '''
         pass
